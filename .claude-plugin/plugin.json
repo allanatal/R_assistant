@@ -1,0 +1,34 @@
+{
+  "name": "r-assistant",
+  "version": "0.1.0",
+  "description": "Claude Code skill for clinical oncology statistical analysis in R: survival analysis (Kaplan-Meier, Cox, RMST), reverse-KM follow-up, IPD reconstruction from published curves, baseline tables, and manuscript-quality figures and tables.",
+  "author": {
+    "name": "Allan Pereira",
+    "email": "allan.pereira.onco@gmail.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/allanatal/R_assistant",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/allanatal/R_assistant.git"
+  },
+  "skills": [
+    {
+      "name": "r-oncology-stats",
+      "path": ".claude/skills/r-oncology-stats",
+      "description": "Clinical oncology statistical analysis in R — Kaplan-Meier, Cox, RMST, IPD reconstruction, baseline tables, manuscript figures."
+    }
+  ],
+  "keywords": [
+    "R",
+    "oncology",
+    "clinical-research",
+    "survival-analysis",
+    "kaplan-meier",
+    "cox-regression",
+    "rmst",
+    "ipd-reconstruction",
+    "gtsummary",
+    "manuscript-figures"
+  ]
+}

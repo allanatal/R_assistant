@@ -1,0 +1,15 @@
+{
+  "name": "r-assistant",
+  "owner": {
+    "name": "Allan Pereira",
+    "url": "https://github.com/allanatal"
+  },
+  "plugins": [
+    {
+      "name": "r-assistant",
+      "source": "./",
+      "description": "Clinical oncology statistical analysis in R: survival analysis, IPD reconstruction, baseline tables, manuscript figures and tables.",
+      "version": "0.1.0"
+    }
+  ]
+}

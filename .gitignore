@@ -1,0 +1,59 @@
+# R
+.Rhistory
+.Rapp.history
+.RData
+.RDataTmp
+.Ruserdata
+*.Rproj.user/
+*.Rcheck/
+*-Ex.R
+/*.tar.gz
+/*.Rcheck/
+
+# renv (uncomment if used)
+# renv/library/
+# renv/local/
+# renv/cellar/
+# renv/lock/
+# renv/python/
+# renv/staging/
+
+# Quarto / RMarkdown
+*_files/
+*_cache/
+/cache/
+*.utf8.md
+*.knit.md
+.quarto/
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Editors
+.Rproj.user
+.vscode/
+.idea/
+*.swp
+*~
+
+# Outputs (user-generated; keep templates only)
+output/
+reports/_book/
+reports/_site/
+
+# Data (raw patient data should NEVER be committed)
+data/*.csv
+data/*.xlsx
+data/*.xls
+data/*.rds
+data/*.RData
+!data/example_*.csv
+!data/.gitkeep
+
+# Claude Code local settings
+.claude/settings.local.json
