@@ -68,6 +68,10 @@ If the user has already provided some of the answers in the prompt or in a previ
 | Name cleanup | `janitor::clean_names()` |
 | Paths | `here::here()` |
 | Plots | `ggplot2` |
+| Propensity-score matching | `MatchIt` |
+| Propensity-score weighting (IPTW, ATT, ATE, ATO/overlap) | `WeightIt` or `PSweight` |
+| Balance diagnostics (SMDs, Love plots) | `cobalt` |
+| Weighted Cox with robust SEs | `survival` + `survey::svycoxph` |
 
 Use additional packages only when they add clear value. Do not introduce a new package without a one-line justification.
 
@@ -93,6 +97,7 @@ Map the user's intent to the right script template and reference doc:
 | "Manuscript figure" / publication-ready KM | `references/05-manuscript-figures.md` | (adapt `scripts/km_curve.R` + export block) |
 | "Manuscript table" / Word export | `references/06-manuscript-tables.md` | (use `flextable::save_as_docx`) |
 | "Review my R script" / "improve this code" | `references/08-code-review-checklist.md` | (no template — apply checklist to user file) |
+| "Propensity score" / "IPTW" / "PS-adjusted Cox" / "matching" / "overlap weights" / "NCDB sensitivity analysis" / reviewer-requested confounding adjustment | `references/10-propensity-score-analyses.md` | (depends on method; see decision tree in reference) |
 
 The templates are **paste-and-adapt scaffolds**, not magic functions. Always edit variable names, paths, and labels to match the user's data — never run a template verbatim against a different dataset.
 
@@ -164,6 +169,7 @@ When the user asks "review", "improve", "fix", or "refactor" an existing R scrip
 | `references/07-data-inspection.md` | First time touching a user dataset — variable types, missingness, factor levels, event coding sanity |
 | `references/08-code-review-checklist.md` | Reviewing or refactoring an existing R script the user shares |
 | `references/09-package-quickref.md` | Quick lookup: which package for which task, with one-line usage notes |
+| `references/10-propensity-score-analyses.md` | PS matching, IPTW, ATT/ATE/ATO/overlap weights, PS-adjusted Cox; balance diagnostics; NCDB sensitivity-analysis guardrails; reviewer-requested confounding adjustment |
 
 ## Script templates index
 

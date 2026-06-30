@@ -44,6 +44,21 @@ One-line reminders for the preferred packages, grouped by task. When in doubt, u
 | **broom.helpers** | Extended helpers for `gtsummary` and `broom` — handles factor variables cleanly. | (mostly internal; enables `tbl_regression`) |
 | **forestmodel** | One-call forest plots from a `coxph` / `lm` / `glm` model. | `forest_model()` |
 
+## Propensity-score / causal inference
+
+For full guidance on when and how to use these (estimand selection, balance assessment, NCDB-specific guardrails), see `references/10-propensity-score-analyses.md`.
+
+| Package | Use for | Key functions |
+|---|---|---|
+| **MatchIt** | Propensity-score matching; returns a matched dataset. | `matchit()`, `match.data()`, `summary()` |
+| **WeightIt** | Balancing weights: IPTW (ATE/ATT/ATC), overlap (ATO), multi-category and continuous treatments. | `weightit()`, `summary()`, `trim()` |
+| **PSweight** | Weighting (incl. overlap), augmented estimators, variance estimation, diagnostics. | `SumStat()`, `PSweight()`, `summary()` |
+| **cobalt** | Balance diagnostics: standardized mean differences, Love plots, balance tables. | `bal.tab()`, `love.plot()`, `bal.plot()` |
+| **survey** | Weighted Cox / robust-SE workflows for IPTW outcome models. | `svydesign()`, `svycoxph()` |
+| **tableone** | Quick balance-table SMD display (alternative to `cobalt::bal.tab` for a printable summary). | `CreateTableOne()`, `print(..., smd = TRUE)` |
+
+Preferred manuscript path: `gtsummary` + `cobalt::bal.tab()` for the balance table; `tableone` is a fallback when an SMD-focused printed table is needed.
+
 ## Data wrangling
 
 | Package | Use for | Key functions |
@@ -84,7 +99,7 @@ These are not in the default skill list — use them when the situation calls fo
 | **tidycmprsk** | Competing-risks analysis (Fine-Gray, cumulative incidence). Out of v0.1.0 scope but worth knowing. |
 | **cmprsk** | Lower-level competing-risks (older API; tidycmprsk wraps it). |
 | **rms** | Frank Harrell's regression modeling strategies — flexible parametric, restricted cubic splines, validation. |
-| **mice** | Multiple imputation for missing data. |
+| **mice** | Multiple imputation for missing data — including for PS-model covariates when missingness is substantial. |
 | **boot** | Bootstrap CIs when you need them (most survival tools have built-in CIs). |
 | **labelled** | Variable labels that propagate through gtsummary. |
 | **skimr** | First-look data summary; complements `glimpse`. |
