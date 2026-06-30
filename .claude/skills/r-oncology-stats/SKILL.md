@@ -2,8 +2,8 @@
 name: r-oncology-stats
 description: Clinical oncology statistical analysis in R. Use when the user asks for Kaplan-Meier curves, Cox proportional hazards models, restricted mean survival time (RMST), reverse Kaplan-Meier follow-up, IPD reconstruction from published KM curves (WebPlotDigitizer + IPDfromKM), baseline (Table 1) comparisons with gtsummary, forest plots, manuscript-quality figures/tables, or review of existing R scripts for oncology outcomes research. Also triggers on Portuguese terms like "sobrevida", "análise de sobrevivência", "Kaplan-Meier", "razão de risco", "curva de sobrevida".
 metadata:
-  version: "0.1.0"
-  last_updated: "2026-06-29"
+  version: "0.2.0"
+  last_updated: "2026-06-30"
   status: active
   audience: medical-oncologist-clinical-researcher
 ---
@@ -189,6 +189,6 @@ When the user asks "review", "improve", "fix", or "refactor" an existing R scrip
 
 ## Version
 
-`r-oncology-stats` v0.1.0 — last updated 2026-06-29. Focus: frequentist survival analysis, baseline comparisons, IPD reconstruction, manuscript outputs.
+`r-oncology-stats` v0.2.0 — last updated 2026-06-30. Focus: frequentist survival analysis, baseline comparisons, IPD reconstruction, manuscript outputs, and propensity-score / causal sensitivity analyses (incl. NCDB guardrails).
 
-Planned for later: Bayesian survival models, competing-risks analysis, prediction-model workflows. Out of scope for v0.1.0 — flag if requested.
+Planned for later: Bayesian survival models, competing-risks analysis, prediction-model workflows. Out of scope for v0.2.0 — flag if requested.
