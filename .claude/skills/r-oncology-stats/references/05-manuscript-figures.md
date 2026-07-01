@@ -86,30 +86,13 @@ The y-axis can be on probability scale (0–1) or percent (0–100). Most journa
 
 ## Forest plots
 
-Two flavors: model-based (from a Cox fit) and meta-analytic (pooled HRs across studies/subgroups).
+Three flavors:
 
-### Model-based (`forestmodel`)
+- **Cox multivariable coefficients (manuscript-grade)** — precision-scaled two-panel `ggplot2` + `patchwork` layout with explicit handling of non-estimable rows (the `HR = 1.00 (1.00–1.00)` trap). See `references/11-forest-plots.md` §3.
+- **Subgroup forest (one Cox per subgroup level)** — `purrr::map_dfr` builder + sibling `plot_forest_subgroup()`. See `references/11-forest-plots.md` §5.
+- **Meta-analysis forest (pooling published HRs)** — `meta::metagen()` + `forest()`. See below.
 
-```r
-library(forestmodel)
-forest_model(cox_mv, recalculate_width = TRUE)
-```
-
-This produces a single-column forest with HR (95% CI) and p-value per covariate. Manuscript-ready out of the box; tweak with `panels` argument for custom columns.
-
-### Subgroup forest (custom `ggplot2`)
-
-```r
-# Suppose `sub_hr` is a data.frame: subgroup, n, hr, lower, upper, p_int
-ggplot(sub_hr, aes(x = hr, y = forcats::fct_rev(subgroup))) +
-  geom_pointrange(aes(xmin = lower, xmax = upper), size = 0.4) +
-  geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
-  scale_x_log10() +
-  labs(x = "Hazard ratio (95% CI)", y = NULL) +
-  theme_classic(base_size = 11)
-```
-
-Always log-scale the x-axis for HRs. A linear x-axis exaggerates HRs > 1 vs HRs < 1.
+> `forestmodel::forest_model()` is documented in `references/11-forest-plots.md` §6 as a QC sanity check, not the manuscript figure.
 
 ### Meta-analysis forest (`meta` or `metafor`)
 

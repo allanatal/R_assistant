@@ -1,122 +1,110 @@
-# Forest plot — three flavors
+# Forest plot -- three flavors
 #
-# A. Model-based forest from a Cox model      (forestmodel::forest_model)
-# B. Subgroup forest with treatment HR per stratum  (custom ggplot)
-# C. Meta-analysis forest of pooled HRs       (meta::metagen + meta::forest)
+# A. Cox MV coefficients        (custom oncology layout + forestmodel QC)
+# B. Subgroup forest             (treatment HR per stratum + interaction p)
+# C. Meta-analysis forest        (pooled HRs across studies)
+#
+# Sections A + B: see references/11-forest-plots.md §3-§6 for methodology
+# (precision-scaled squares, "HR = 1.00 (1.00-1.00)" trap, forestmodel crash).
+# Section C: see references/05-manuscript-figures.md Meta-analysis section.
 #
 # Pick the section that matches the use case.
 
 # ---- packages ---------------------------------------------------------------
-library(forestmodel)
-library(ggplot2)
-library(dplyr)
-library(forcats)
-library(here)
 library(survival)
+library(broom.helpers)
+library(ggplot2)
+library(patchwork)
+library(scales)
+library(gtsummary)
+library(flextable)
+library(forestmodel)
+library(forcats)
+library(purrr)
+library(dplyr)
+library(here)
+library(tibble)
 # library(meta)         # uncomment for section C
 
+# Load the 7 helpers (plot_forest_oncology, plot_forest_subgroup,
+# nonest_terms, mark_nonest_tbl, save_forestmodel, build_subgroup_tidy,
+# interaction_p). Mirrored from references/11-forest-plots.md.
+source(here::here("scripts", "forest_helpers.R"))
+
+out_dir <- here::here("output")
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
 # =============================================================================
-# A. Model-based forest from a Cox model
+# A. Cox MV coefficients -- custom oncology layout + forestmodel QC
 # =============================================================================
 # >>> EDIT: assume you already have a fitted multivariable Cox model `cox_mv`
 # cox_mv <- coxph(Surv(os_months, os_event) ~ arm + age + sex + ecog + stage,
 #                 data = df_analysis)
 
-fm <- forestmodel::forest_model(
-  cox_mv,
-  recalculate_width = TRUE
-)
-print(fm)
+# Print summary to the run log so the plot can be cross-checked against
+# the raw Wald HRs. Also flag any non-estimable terms upfront.
+summary(cox_mv)
+bad <- nonest_terms(cox_mv)
+if (length(bad) > 0) {
+  message("Non-estimable Cox terms detected (rendered as 'Not estimable' ",
+          "in the forest and blanked in the .docx table): ",
+          paste(bad, collapse = ", "))
+}
 
-out_dir <- here::here("output")
-dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-
-ggplot2::ggsave(
-  filename = file.path(out_dir, "fig_forest_cox.pdf"),
-  plot     = fm,
-  width    = 7, height = 5, units = "in",
-  device   = grDevices::cairo_pdf
+# Manuscript figure -- precision-scaled two-panel layout
+plot_forest_oncology(
+  model          = cox_mv,
+  file_base      = "fig_forest_cox_mv",
+  endpoint_label = "Overall survival",           # >>> EDIT endpoint
+  out_dir        = out_dir
 )
+
+# QC sanity check -- forestmodel default (uniform squares), with degenerate
+# variables auto-excluded so the base-R log-axis tick generator can't crash
+# with "_LARGE_ range: invalid {xy}axp or par".
+save_forestmodel(cox_mv,
+                 file_base = "fig_forest_cox_mv_qc",
+                 out_dir   = out_dir)
 
 # =============================================================================
-# B. Subgroup forest — treatment HR within each subgroup
+# B. Subgroup forest -- treatment HR within each subgroup
 # =============================================================================
-# Computes a Cox HR for treatment within each level of each subgroup variable.
-# Reports interaction p (treatment × subgroup) for each variable.
+# Fits ONE Cox model per subgroup level (e.g., one per age band). Reports
+# ONE interaction p-value per subgroup variable (not per row). Use ONLY for
+# pre-specified subgroups -- see reference doc §5.1 for the fishing warning.
 
 df_analysis <- readr::read_csv(here::here("data", "trial.csv"))
 
-# >>> EDIT: subgroup variables
+# >>> EDIT: subgroup variables, time / event / treatment columns
 subgroup_vars <- c("age_group", "sex", "ecog", "stage")
+time_var  <- "os_months"
+event_var <- "os_event"
+treat_var <- "arm"
 
-# Helper: compute treatment HR within one subgroup level
-subgroup_hr <- function(data, sub_var, sub_level) {
-  d <- dplyr::filter(data, .data[[sub_var]] == sub_level)
-  if (nrow(d) < 10 || sum(d$os_event) < 5) {
-    return(tibble::tibble(subgroup = sub_var, level = sub_level,
-                          n = nrow(d), events = sum(d$os_event),
-                          hr = NA, lower = NA, upper = NA))
-  }
-  f <- survival::coxph(survival::Surv(os_months, os_event) ~ arm, data = d)
-  ci <- exp(confint(f))
-  tibble::tibble(
-    subgroup = sub_var,
-    level    = as.character(sub_level),
-    n        = nrow(d),
-    events   = sum(d$os_event),
-    hr       = exp(coef(f))[1],
-    lower    = ci[1, 1],
-    upper    = ci[1, 2]
+# One forest per subgroup variable
+for (sv in subgroup_vars) {
+  sub_tidy <- build_subgroup_tidy(
+    data         = df_analysis,
+    time_var     = time_var,
+    event_var    = event_var,
+    treat_var    = treat_var,
+    subgroup_var = sv,
+    min_events   = 10                # strata below this are "Not estimable"
+  )
+  p_int <- interaction_p(df_analysis, time_var, event_var, treat_var, sv)
+  message(sprintf("Interaction p (%s * %s): %.4f", treat_var, sv, p_int))
+
+  plot_forest_subgroup(
+    tidy_df        = sub_tidy,
+    file_base      = paste0("fig_forest_subgroup_", sv),
+    endpoint_label = "Overall survival",       # >>> EDIT endpoint
+    p_interaction  = p_int,
+    out_dir        = out_dir
   )
 }
 
-# Build long table over all subgroup × level combos
-sub_tab <- purrr::map_dfr(subgroup_vars, function(sv) {
-  levs <- unique(df_analysis[[sv]])
-  purrr::map_dfr(levs, ~ subgroup_hr(df_analysis, sv, .x))
-}) |>
-  dplyr::mutate(label = paste0(subgroup, ": ", level))
-
-# Interaction p-values (LRT) per subgroup variable
-int_p <- purrr::map_dfr(subgroup_vars, function(sv) {
-  f0 <- survival::coxph(
-    as.formula(paste0("survival::Surv(os_months, os_event) ~ arm + ", sv)),
-    data = df_analysis
-  )
-  f1 <- survival::coxph(
-    as.formula(paste0("survival::Surv(os_months, os_event) ~ arm * ", sv)),
-    data = df_analysis
-  )
-  tibble::tibble(
-    subgroup = sv,
-    p_interaction = anova(f0, f1)$"P(>|Chi|)"[2]
-  )
-})
-print(int_p)
-
-# Forest
-sub_plot <- ggplot(sub_tab, aes(x = hr, y = forcats::fct_rev(label))) +
-  geom_pointrange(aes(xmin = lower, xmax = upper), size = 0.35) +
-  geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
-  scale_x_log10() +
-  labs(
-    x = "Hazard ratio (treatment vs control), 95% CI",
-    y = NULL,
-    caption = "Log-scale x-axis. HR < 1 favors treatment."
-  ) +
-  theme_classic(base_size = 11)
-
-print(sub_plot)
-
-ggplot2::ggsave(
-  filename = file.path(out_dir, "fig_forest_subgroup.pdf"),
-  plot     = sub_plot,
-  width    = 7, height = 5, units = "in",
-  device   = grDevices::cairo_pdf
-)
-
 # =============================================================================
-# C. Meta-analysis forest — pooled HRs across studies
+# C. Meta-analysis forest -- pooled HRs across studies
 # =============================================================================
 # Suppose you have a tibble: study, log_hr, se_log_hr (one row per study).
 # Typical source: reconstructed IPD per published curve (see ipd_from_km.R)

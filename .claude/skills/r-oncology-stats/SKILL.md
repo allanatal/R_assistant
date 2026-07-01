@@ -60,7 +60,8 @@ If the user has already provided some of the answers in the prompt or in a previ
 | RMST | `survRM2` |
 | IPD reconstruction | `IPDfromKM` |
 | Meta-analysis | `meta`, `metafor` |
-| Forest plots | `forestmodel` (model-based) or `ggplot2` (custom) |
+| Forest plots (Cox MV / subgroup, manuscript) | `ggplot2` + `patchwork` + `broom.helpers` + `scales`; `forestmodel` for QC only |
+| Forest plots (meta-analysis of pooled HRs) | `meta` or `metafor` |
 | Tables → Word | `flextable` (+ `officer` for embedding in .docx) |
 | Tables → HTML | `gt` |
 | Data wrangling | `dplyr`, `tidyr`, `forcats`, `stringr` |
@@ -93,7 +94,9 @@ Map the user's intent to the right script template and reference doc:
 | "RMST" / PH violated / curves cross | `references/02-survival-analysis.md` (RMST section) | `scripts/rmst.R` |
 | "Reconstruct IPD" / "digitize KM curve" | `references/03-ipd-reconstruction.md` | `scripts/ipd_from_km.R` |
 | "Table 1" / baseline characteristics | `references/04-baseline-tables.md` | `scripts/baseline_table1.R` |
-| "Forest plot" (Cox/subgroup/meta) | `references/05-manuscript-figures.md` | `scripts/forest_plot.R` |
+| "Forest plot" (Cox MV coefficients) | `references/11-forest-plots.md` §3 | `scripts/forest_plot.R` §A |
+| "Subgroup forest" (treatment HR per stratum) | `references/11-forest-plots.md` §5 | `scripts/forest_plot.R` §B |
+| "Forest plot" (meta-analysis, pooled HRs across studies) | `references/05-manuscript-figures.md` (Meta-analysis section) | `scripts/forest_plot.R` §C |
 | "Manuscript figure" / publication-ready KM | `references/05-manuscript-figures.md` | (adapt `scripts/km_curve.R` + export block) |
 | "Manuscript table" / Word export | `references/06-manuscript-tables.md` | (use `flextable::save_as_docx`) |
 | "Review my R script" / "improve this code" | `references/08-code-review-checklist.md` | (no template — apply checklist to user file) |
@@ -170,6 +173,7 @@ When the user asks "review", "improve", "fix", or "refactor" an existing R scrip
 | `references/08-code-review-checklist.md` | Reviewing or refactoring an existing R script the user shares |
 | `references/09-package-quickref.md` | Quick lookup: which package for which task, with one-line usage notes |
 | `references/10-propensity-score-analyses.md` | PS matching, IPTW, ATT/ATE/ATO/overlap weights, PS-adjusted Cox; balance diagnostics; NCDB sensitivity-analysis guardrails; reviewer-requested confounding adjustment |
+| `references/11-forest-plots.md` | Manuscript forest plots for Cox MV and subgroup analyses: precision-scaled two-panel ggplot+patchwork; handling the "HR = 1.00 (1.00–1.00)" non-estimable trap; `forestmodel` as QC only |
 
 ## Script templates index
 
@@ -177,12 +181,13 @@ When the user asks "review", "improve", "fix", or "refactor" an existing R scrip
 |---|---|---|
 | `scripts/km_curve.R` | KM curve + risk table, manuscript theme, vector export | `survival`, `survminer` |
 | `scripts/cox_univariable.R` | Single-covariate Cox + cox.zph + tidy HR table | `survival`, `broom`, `gtsummary` |
-| `scripts/cox_multivariable.R` | Multivariable Cox with clinically chosen covariates + PH diagnostics + forest | `survival`, `broom.helpers`, `forestmodel`, `gtsummary` |
+| `scripts/cox_multivariable.R` | Multivariable Cox with clinically chosen covariates + PH diagnostics (tryCatch-wrapped) + non-estimable-row-masked table + precision-scaled forest via `forest_helpers.R` | `survival`, `broom.helpers`, `gtsummary`, `patchwork`, `scales` |
 | `scripts/rmst.R` | `survRM2::rmst2` with explicit tau justification | `survRM2`, `survival` |
 | `scripts/reverse_km_followup.R` | Median follow-up via reverse KM, overall and stratified | `prodlim`, `survival` |
 | `scripts/ipd_from_km.R` | `IPDfromKM::preprocess` + `getIPD` + verification overlay | `IPDfromKM`, `survival`, `ggplot2` |
 | `scripts/baseline_table1.R` | `gtsummary::tbl_summary` + `add_p` with appropriate test selection | `gtsummary`, `flextable` |
-| `scripts/forest_plot.R` | Forest plot for Cox model or pooled HRs (meta-analysis) | `forestmodel`, `meta`, `ggplot2` |
+| `scripts/forest_plot.R` | Forest plots: (A) Cox MV coefficients + forestmodel QC, (B) subgroup HR + interaction p, (C) meta-analysis pooling. Sources `forest_helpers.R`. | `broom.helpers`, `ggplot2`, `patchwork`, `scales`, `forestmodel`, `purrr`, `meta` |
+| `scripts/forest_helpers.R` | 7 helper functions for oncology forest plots (mirrored from `references/11-forest-plots.md`). Sourced by `forest_plot.R` and `cox_multivariable.R`. | `broom.helpers`, `ggplot2`, `patchwork`, `scales`, `gtsummary`, `forestmodel` |
 | `templates/analysis_skeleton.R` | Reproducible-project skeleton: load → inspect → analyze → export | `here`, `readxl`, `janitor`, tidyverse |
 
 ---

@@ -41,8 +41,8 @@ One-line reminders for the preferred packages, grouped by task. When in doubt, u
 | Package | Use for | Key functions |
 |---|---|---|
 | **broom** | Convert model objects to tidy data frames. | `tidy()`, `glance()`, `augment()` |
-| **broom.helpers** | Extended helpers for `gtsummary` and `broom` — handles factor variables cleanly. | (mostly internal; enables `tbl_regression`) |
-| **forestmodel** | One-call forest plots from a `coxph` / `lm` / `glm` model. | `forest_model()` |
+| **broom.helpers** | Tidy bridge from `coxph` / `glm` to a manuscript-ready data frame with `reference_row` / `header_row` flags. Foundation for custom forest plots. | `tidy_plus_plus(model, exponentiate = TRUE, conf.int = TRUE, add_reference_rows = TRUE, add_header_rows = TRUE)` |
+| **forestmodel** | One-call forest plots from a `coxph` / `lm` / `glm` model. Use as QC sanity check next to the custom oncology layout; see `references/11-forest-plots.md` §6. | `forest_model()` |
 
 ## Propensity-score / causal inference
 
@@ -87,6 +87,8 @@ Preferred manuscript path: `gtsummary` + `cobalt::bal.tab()` for the balance tab
 | Package | Use for | Key functions |
 |---|---|---|
 | **ggplot2** | All custom plots; foundation for survminer, ggsurvfit, forestmodel. | `ggplot()`, `geom_*()`, `theme_classic()`, `ggsave()` |
+| **patchwork** | Combine multiple ggplots into multi-panel layouts (e.g., the two-panel forest in `references/11-forest-plots.md`). | `plot_layout()`, `wrap_plots()`, `+` / `/` operators |
+| **scales** | Axis transforms, log-tick break helpers, precision-based size rescaling for forest squares. | `rescale()`, `log_breaks()`, `pretty_breaks()` |
 
 ---
 
@@ -104,7 +106,6 @@ These are not in the default skill list — use them when the situation calls fo
 | **labelled** | Variable labels that propagate through gtsummary. |
 | **skimr** | First-look data summary; complements `glimpse`. |
 | **naniar** | Missingness visualization. |
-| **patchwork** | Combine multiple ggplots into a multi-panel figure. |
 | **lubridate** | Date/time parsing and arithmetic. |
 | **renv** | Per-project package versions for reproducibility. |
 

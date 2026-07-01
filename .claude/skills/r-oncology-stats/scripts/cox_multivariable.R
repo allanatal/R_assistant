@@ -1,19 +1,30 @@
-# Multivariable Cox proportional hazards — clinically meaningful adjustment
+# Multivariable Cox proportional hazards -- clinically meaningful adjustment
 #
 # Inputs:   data frame with time/event/treatment + adjustment covariates;
 #           covariates chosen by clinical reasoning, NOT stepwise selection.
 # Outputs:  Adjusted HR (95% CI) for each covariate, PH diagnostics, forest plot,
 #           univariable + multivariable side-by-side gtsummary table.
 # Assumes:  event coding verified; factor levels set; >= ~10 events per covariate.
+#
+# Forest plot + non-estimable-row handling: see references/11-forest-plots.md
+# §3 (custom oncology layout), §4 (HR=1.00 trap), §6 (forestmodel QC).
 
 # ---- packages ---------------------------------------------------------------
 library(survival)
 library(gtsummary)
 library(broom.helpers)
 library(forestmodel)
+library(ggplot2)
+library(patchwork)
+library(scales)
+library(flextable)
 library(dplyr)
 library(forcats)
 library(here)
+
+# Load the 7 forest-plot helpers (plot_forest_oncology, nonest_terms,
+# mark_nonest_tbl, save_forestmodel, ...). Mirrored from the reference doc.
+source(here::here("scripts", "forest_helpers.R"))
 
 # ---- data + factor setup ----------------------------------------------------
 df_analysis <- readr::read_csv(here::here("data", "trial.csv")) |>
@@ -43,16 +54,23 @@ cox_mv <- survival::coxph(
 summary(cox_mv)
 
 # ---- PH diagnostics ---------------------------------------------------------
-zph <- survival::cox.zph(cox_mv)
-print(zph)
-
-violations <- rownames(zph$table)[zph$table[, "p"] < 0.05]
-if (length(violations) > 0) {
-  warning(
-    "PH violated for: ", paste(violations, collapse = ", "), ". ",
-    "Consider stratifying these variables (`+ strata(var)`), ",
-    "fitting a time-varying effect (`tt()`), or reporting RMST."
-  )
+# Wrap in tryCatch -- cox.zph will throw on singular models (sparse strata,
+# quasi-separation). See references/11-forest-plots.md §7.4.
+zph <- tryCatch(survival::cox.zph(cox_mv), error = function(e) {
+  message("cox.zph failed (likely sparse stratum / singular information matrix): ",
+          conditionMessage(e))
+  NULL
+})
+if (!is.null(zph)) {
+  print(zph)
+  violations <- rownames(zph$table)[zph$table[, "p"] < 0.05]
+  if (length(violations) > 0) {
+    warning(
+      "PH violated for: ", paste(violations, collapse = ", "), ". ",
+      "Consider stratifying these variables (`+ strata(var)`), ",
+      "fitting a time-varying effect (`tt()`), or reporting RMST."
+    )
+  }
 }
 
 # Schoenfeld plots (one panel per covariate)
@@ -81,7 +99,8 @@ mv <- cox_mv |>
       ecog  ~ "ECOG performance status",
       stage ~ "Disease stage"
     )
-  )
+  ) |>
+  mark_nonest_tbl(cox_mv)   # blank HR/CI/p for non-estimable rows; see §4.4
 
 cox_table <- gtsummary::tbl_merge(
   list(uni, mv),
@@ -92,25 +111,24 @@ cox_table <- gtsummary::tbl_merge(
 cox_table
 
 # ---- forest plot ------------------------------------------------------------
-# forestmodel produces a one-call manuscript-ready forest
-fm <- forestmodel::forest_model(cox_mv)
-print(fm)
-
-# ---- export -----------------------------------------------------------------
 out_dir <- here::here("output")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Table → Word
+# Manuscript figure -- precision-scaled two-panel layout with explicit
+# non-estimable-row handling. See references/11-forest-plots.md §3.
+plot_forest_oncology(
+  model          = cox_mv,
+  file_base      = "fig_forest_mv",
+  endpoint_label = "Overall survival",   # >>> EDIT endpoint
+  out_dir        = out_dir
+)
+
+# QC sanity check -- forestmodel default, degenerate covariates auto-excluded.
+save_forestmodel(cox_mv, file_base = "fig_forest_mv_qc", out_dir = out_dir)
+
+# ---- export table -----------------------------------------------------------
 cox_table |>
   gtsummary::as_flex_table() |>
   flextable::save_as_docx(path = file.path(out_dir, "table_cox_multivariable.docx"))
-
-# Forest → PDF
-ggplot2::ggsave(
-  filename = file.path(out_dir, "fig_forest_mv.pdf"),
-  plot     = fm,
-  width    = 7, height = 5, units = "in",
-  device   = grDevices::cairo_pdf
-)
 
 cat("Saved table_cox_multivariable.docx and fig_forest_mv.pdf to ", out_dir, "\n")
