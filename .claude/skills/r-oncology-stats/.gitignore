@@ -1,0 +1,7 @@
+# R session / editor stray files
+Rplots.pdf
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rcheck/
