@@ -304,7 +304,7 @@ When a reviewer asks for "a PS-adjusted Cox model or IPTW" (the most common phra
 7. **Matching discards too many patients or leaves too few events** → switch to weighting or PS-adjusted Cox; explain why matching was not ideal.
 8. **IPTW produces extreme weights or low ESS** → stabilized weights, trimming, overlap weights, or ATT weights.
 9. **PH assumption violated** → RMST after the PS adjustment / matching / weighting; define τ explicitly.
-10. **Exposure defined by receiving treatment after diagnosis or completing N cycles** → assess immortal time bias first; consider landmark or time-dependent treatment BEFORE applying PS.
+10. **Exposure defined by receiving treatment after diagnosis or completing N cycles** → assess immortal time bias first. Pragmatic default: landmark analysis (§14.7). When treatment timing is well recorded and landmark misclassification is likely to matter, prefer time-dependent (start-stop) Cox (§11.F, code in §13.H). Apply either BEFORE the PS step.
 11. **NCDB analysis requesting DFS / PFS / RFS / CSS** → warn the user that standard NCDB PUF does not support those endpoints; pivot to OS unless they have additional variables.
 
 ### Preferred default for retrospective oncology survival papers
@@ -367,6 +367,29 @@ If `cox.zph()` flags PH violations, or curves visibly cross:
 - Consider RMST as the primary effect measure (see `references/02-survival-analysis.md` section 4).
 - Define τ explicitly and justify the choice.
 - Do not rely only on a Cox HR when PH is strongly violated.
+
+### F. Time-dependent treatment (start-stop Cox) — alternative to landmark
+
+Landmark analysis is the pragmatic first-line correction for immortal-time bias, but it has a known residual attenuation: patients whose treatment starts **after** the landmark are classified as "untreated by landmark" while still enjoying post-treatment protection during their follow-up. This biases the HR toward the null.
+
+Time-dependent treatment (start-stop Cox / counting-process form) eliminates that misclassification by letting each patient contribute untreated person-time before their treatment date and treated person-time after it. Use it when:
+
+- The exposure is a post-diagnosis event (surgery, chemotherapy, immunotherapy start, RT start).
+- The timing of exposure is recorded per patient (`days_to_treatment` or equivalent).
+- Landmark misclassification is clinically meaningful (e.g., treatment routinely initiated over a wide window).
+- Sample size allows (start-stop expands each treated patient into two rows).
+
+**Do NOT use time-dependent treatment when:**
+
+- Exposure timing is unknown or unreliable in the dataset.
+- The exposure is truly baseline (e.g., a diagnostic biomarker, not a post-diagnosis treatment).
+- The `treat × time` interaction is the scientific question — that is non-proportional hazards, not time-dependent covariates; use §E instead.
+
+The estimand is the same as under landmark (effect of exposure vs no exposure on the hazard), but the estimator is less attenuated. Report time-dependent Cox as either:
+- **Primary analysis** when timing data are clean and clinically important.
+- **Sensitivity analysis** alongside landmark, to demonstrate robustness.
+
+Weighted start-stop Cox (PS-based) is straightforward: estimate baseline-covariate PS/weights **once** on the row-per-patient dataset (weights are baseline properties, not time-varying), then attach the weight to every counting-process row for that patient. Code template in §13.H.
 
 ---
 
@@ -492,6 +515,7 @@ love_p <- cobalt::love.plot(
   match_obj,
   thresholds = c(m = 0.1),
   abs        = TRUE,
+  stars      = "raw",                            # disambiguates SMD vs raw-diff axis
   var.order  = "unadjusted",
   colors     = c("#1F77B4", "#D62728")
 )
@@ -533,7 +557,7 @@ summary(w_obj)                 # weight distribution + ESS
 
 # 2. Balance diagnostics
 cobalt::bal.tab(w_obj, m.threshold = 0.1, un = TRUE)
-cobalt::love.plot(w_obj, thresholds = c(m = 0.1), abs = TRUE)
+cobalt::love.plot(w_obj, thresholds = c(m = 0.1), abs = TRUE, stars = "raw")
 
 # 3. Inspect extreme weights
 df_analysis$wt <- w_obj$weights
@@ -577,7 +601,7 @@ w_overlap <- WeightIt::weightit(
 
 summary(w_overlap)
 cobalt::bal.tab(w_overlap, m.threshold = 0.1)
-cobalt::love.plot(w_overlap, thresholds = c(m = 0.1), abs = TRUE)
+cobalt::love.plot(w_overlap, thresholds = c(m = 0.1), abs = TRUE, stars = "raw")
 
 df_analysis$wt_ow <- w_overlap$weights
 
@@ -652,12 +676,13 @@ bal_tbl <- bal |>
                 smd_unadj = Diff.Un,
                 smd_adj   = Diff.Adj)
 
-# G.3 Love plot export (see references/05-manuscript-figures.md)
+# G.3 Love plot export (see references/05-manuscript-figures.md — device = "pdf" is
+# the portable default; cairo_pdf requires Cairo/XQuartz and fails silently otherwise)
 ggplot2::ggsave(
   filename = here::here("output", "fig_loveplot.pdf"),
   plot     = love_p,
   width    = 6.5, height = 5, units = "in",
-  device   = cairo_pdf
+  device   = "pdf"
 )
 
 # G.4 Cox HR table (use the model from the chosen method)
@@ -697,6 +722,93 @@ tab_cox |>
   gtsummary::as_flex_table() |>
   flextable::save_as_docx(path = here::here("output", "table_cox_iptw.docx"))
 ```
+
+### H. Time-dependent treatment (start-stop Cox) with PS weights
+
+Alternative to landmark when the exposure is post-baseline and timing is recorded per patient. Removes the residual attenuation that landmark introduces by misclassifying late-treated patients (see §11.F).
+
+**Object conventions.** `df_analysis` is one row per patient with baseline covariates, `os_months`, `os_event`, `days_to_treatment` (NA for never-treated). `wt` is a baseline PS-based weight already estimated on the row-per-patient dataset. Weights are baseline properties; they attach to *every* counting-process row for a given patient.
+
+```r
+# 1. Prepare per-patient row-per-patient data with the exposure "start" time
+df_pp <- df_analysis |>
+  dplyr::mutate(
+    t_rx_months = days_to_treatment / 30.4375,   # NA if never treated
+    # Ceiling to os_months so patients treated after their last-contact date
+    # are handled as never-treated (this can happen with recording lag)
+    t_rx_months = ifelse(!is.na(t_rx_months) & t_rx_months < os_months,
+                         t_rx_months, NA_real_)
+  )
+
+# 2. Split each patient's follow-up on t_rx_months using survSplit()
+#    - Never-treated patients get a single row (0, os_months]
+#    - Treated patients get two rows: (0, t_rx_months] treated=0 and
+#                                     (t_rx_months, os_months] treated=1
+df_ss <- df_pp |>
+  dplyr::mutate(row_id = dplyr::row_number()) |>
+  survival::survSplit(
+    formula = survival::Surv(os_months, os_event) ~ .,
+    cut     = df_pp$t_rx_months,          # patient-specific cuts (ignore NAs)
+    end     = "os_stop",
+    start   = "os_start",
+    event   = "os_event_ss",
+    episode = "episode"
+  ) |>
+  dplyr::group_by(row_id) |>
+  dplyr::mutate(
+    treated_now = dplyr::case_when(
+      is.na(t_rx_months)               ~ 0L,                   # never treated
+      os_start >= t_rx_months          ~ 1L,                   # post-treatment
+      TRUE                             ~ 0L                    # pre-treatment
+    )
+  ) |>
+  dplyr::ungroup()
+
+# NB: survSplit's `cut = df_pp$t_rx_months` splits at every unique non-NA cut
+# time for every patient — that is NOT what we want. The correct pattern is to
+# split each patient at their OWN cut. Do it in a loop or with `tmerge()`:
+df_ss <- survival::tmerge(
+  data1 = df_pp,
+  data2 = df_pp,
+  id    = patient_id,
+  os_event_ss = event(os_months, os_event),
+  treated_now = tdc(t_rx_months)   # time-dependent covariate: 0 before t_rx, 1 after
+)
+
+# 3. Fit the weighted start-stop Cox
+cox_tdep <- survival::coxph(
+  survival::Surv(tstart, tstop, os_event_ss) ~ treated_now,
+  data    = df_ss,
+  weights = wt,                        # baseline PS weight, replicated per row
+  robust  = TRUE,
+  cluster = patient_id                 # cluster on patient (multiple rows)
+)
+summary(cox_tdep)
+
+# 4. PH check — cox.zph works on start-stop objects
+survival::cox.zph(cox_tdep)
+
+# 5. Baseline covariate adjustment (double robustness): add PS-selected
+#    covariates. They are time-fixed, so `tmerge` does not need to touch them.
+cox_tdep_adj <- survival::coxph(
+  survival::Surv(tstart, tstop, os_event_ss) ~ treated_now +
+    age + sex + cstage + grade + histology + comorbidity +
+    facility_type + insurance + dx_year,
+  data = df_ss, weights = wt, robust = TRUE, cluster = patient_id
+)
+summary(cox_tdep_adj)
+```
+
+**Doubly-robust interpretation.** In practice, the covariate-adjusted, PS-weighted start-stop Cox (`cox_tdep_adj` above) is the estimator you want. PS weighting alone can leave residual bias if the baseline hazard depends on covariates that are not fully captured by the weight. Combining PS weights with outcome-model covariate adjustment gives a **doubly-robust** estimator: it is consistent if EITHER the PS model OR the outcome model is correctly specified. Empirically this behaves much closer to the true HR than either estimator alone; landmark, by contrast, cannot be made doubly robust in the same way because it discards information at the design stage.
+
+**Guardrails specific to start-stop:**
+
+- `tmerge` is the ergonomic way to build the counting-process dataset. `survSplit` also works, but requires a per-patient loop or careful cut construction. Prefer `tmerge`.
+- Always `cluster = patient_id` in the Cox call. Otherwise the sandwich variance treats the two rows of a treated patient as independent, undercounting variance.
+- The weight `wt` is a **baseline** property; do not re-estimate it inside each interval. `tmerge` copies baseline columns to every row for a patient, which is what you want.
+- After `tmerge`, verify `table(df_ss$treated_now)` gives the number of rows-under-treatment vs rows-untreated, and that the total person-time (`sum(tstop - tstart)`) equals the sum of `os_months` in the original per-patient dataset. Mismatches indicate a split error.
+- Do **not** re-weight or re-match on the split dataset — matching / IPTW estimand is defined on the baseline population, not on person-time.
+- Report the same estimand language as under landmark (ATE / ATT / ATO) — the estimator changed, the estimand did not.
 
 ---
 
@@ -764,6 +876,11 @@ df_ncdb <- df_ncdb |>
   )
 
 # 14.7 Landmark structure for post-diagnosis exposure (immortal time)
+# Pragmatic first-line correction. Trades away some information: patients
+# treated after the landmark are misclassified as "untreated by landmark",
+# which attenuates the HR toward the null. See §11.F / §13.H for time-
+# dependent (start-stop) Cox, which does not have this attenuation when
+# treatment timing is well recorded.
 landmark_days <- 180
 df_ncdb_lm <- df_ncdb |>
   dplyr::mutate(days_to_chemo = dx_chemo_started_days) |>

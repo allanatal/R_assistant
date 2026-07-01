@@ -129,7 +129,7 @@ ggplot2::ggsave(
   plot     = km$plot,                    # km$plot from ggsurvplot
   width    = 6.5, height = 5,
   units    = "in",
-  device   = cairo_pdf                   # avoids font-embedding issues
+  device   = "pdf"                       # portable default; see cairo_pdf note below
 )
 
 # For survminer object with risk table, save the composite:
@@ -155,6 +155,28 @@ ggsave("fig.pdf", my_ggplot, width = 6, height = 4)   # no dev.off() needed
 ```
 
 Common bug: opening `pdf()` inside a function, the function errors, and the device is left open — subsequent plots write to the corrupt PDF. Wrap critical exports in `tryCatch` + `on.exit(dev.off())` for production scripts.
+
+### `cairo_pdf` vs `"pdf"` portability
+
+`grDevices::cairo_pdf()` embeds Unicode fonts and produces cleaner text (en-dashes, Greek letters, non-ASCII glyphs), but it depends on the Cairo graphics stack:
+
+- On **Linux servers** (Docker, CI, most HPCs): usually present — safe to use.
+- On **macOS**: requires **XQuartz** to be installed. When XQuartz is missing, `ggsave(..., device = cairo_pdf)` fails **silently** (a warning is emitted but no file is written, and the return value looks fine to callers).
+- On **Windows**: usually present when R was installed with the standard binary.
+
+Default to `device = "pdf"` in reference/template code so scripts are portable. When a manuscript figure needs Unicode glyphs, switch to `device = cairo_pdf` on a machine you have verified has Cairo — and **check `file.exists(...)` after each `ggsave`** so a missing device doesn't slip past.
+
+```r
+# Portable default:
+ggplot2::ggsave("fig.pdf", plot = p, width = 6.5, height = 5, device = "pdf")
+
+# Cairo variant — verify the device works on your machine first:
+if (capabilities("cairo")) {
+  ggplot2::ggsave("fig.pdf", plot = p, width = 6.5, height = 5, device = cairo_pdf)
+} else {
+  ggplot2::ggsave("fig.pdf", plot = p, width = 6.5, height = 5, device = "pdf")
+}
+```
 
 ---
 
